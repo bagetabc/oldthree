@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>OLDTHREE</title>
+    
+    <!-- Иконки для добавления на главный экран (iOS, Android, Chrome ПК) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23000000'/><path d='M25,40 H35 V30 H45 V40 H55 V50 H45 V60 H35 V50 H25 Z M65,40 A 5,5 0 1,1 65,39.9 Z M75,52 A 5,5 0 1,1 75,51.9 Z M42,70 Q50,76 58,70' fill='none' stroke='%2333ff33' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/><path d='M20,50 Q10,70 30,80 L40,75 L60,75 L70,80 Q90,70 80,50 Q75,35 50,35 Q25,35 20,50 Z' fill='none' stroke='%2333ff33' stroke-width='5' stroke-linejoin='round'/></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23000000'/><path d='M25,40 H35 V30 H45 V40 H55 V50 H45 V60 H35 V50 H25 Z M65,40 A 5,5 0 1,1 65,39.9 Z M75,52 A 5,5 0 1,1 75,51.9 Z M42,70 Q50,76 58,70' fill='none' stroke='%2333ff33' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/><path d='M20,50 Q10,70 30,80 L40,75 L60,75 L70,80 Q90,70 80,50 Q75,35 50,35 Q25,35 20,50 Z' fill='none' stroke='%2333ff33' stroke-width='5' stroke-linejoin='round'/></svg>">
+    
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+        body { background: #000; color: #33ff33; font-family: monospace; overflow: hidden; height: 100vh; }
+        
+        /* Меню */
+        #menu-page { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; }
+        .title { font-size: 40px; font-weight: bold; margin-bottom: 30px; letter-spacing: 4px; text-shadow: 0 0 10px #33ff33; }
+        .btn-game { border: 2px solid #33ff33; background: #051505; color: #33ff33; padding: 18px; width: 260px; font-size: 18px; font-weight: bold; margin: 10px; border-radius: 8px; cursor: pointer; }
+        .btn-game:hover { background: #113311; }
+        .btn-game:active { background: #33ff33; color: #000; }
+        
+        /* Игровой экран */
+        #game-page { display: none; position: relative; width: 100vw; height: 100vh; background: #000; }
+        #gameCanvas { display: block; background: #050505; border-bottom: 2px solid #33ff33; margin: 0 auto; }
+        
+        /* Панель состояния */
+        #top-bar { height: 50px; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; font-size: 16px; font-weight: bold; background: #0a0a0a; }
+        #exit-btn { background: #000; border: 1px solid #33ff33; color: #33ff33; padding: 5px 10px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+        .hud-stats { display: flex; gap: 15px; }
+        
+        /* Кнопки управления */
+        #controls { position: absolute; bottom: 0; left: 0; width: 100%; height: 110px; display: flex; justify-content: center; gap: 40px; align-items: center; background: #111; padding: 10px; }
+        .ctrl-btn { width: 75px; height: 75px; background: #222; border: 2px solid #33ff33; color: #33ff33; border-radius: 50%; font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .ctrl-btn:active { background: #33ff33; color: #000; }
+        #action-btn { border-color: #ff3333; color: #ff3333; }
+        #action-btn:active { background: #ff3333; color: #000; }
+    </style>
+</head>
+<body>
+
+    <!-- ГЛАВНОЕ МЕНЮ -->
+    <div id="menu-page">
+        <div class="title">OLDTHREE</div>
+        <button class="btn-game" onclick="play('doom')">DOOM 3D</button>
+        <button class="btn-game" onclick="play('space')">SPACE ATTACK</button>
+        <button class="btn-game" onclick="play('snake')">RETRO SNAKE</button>
+    </div>
+
+    <!-- ИГРОВОЙ ЭКРАН -->
+    <div id="game-page">
+        <div id="top-bar">
+            <button id="exit-btn" onclick="stopGame()">В МЕНЮ</button>
+            <div class="hud-stats">
+                <span id="hud-1">SCORE: 0</span>
+                <span id="hud-2"></span>
+            </div>
+        </div>
+        
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="controls">
+            <div class="ctrl-btn" id="left-btn">◀</div>
+            <div class="ctrl-btn" id="action-btn">•</div>
+            <div class="ctrl-btn" id="right-btn">▶</div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let activeGame = null;
+        let loop = null;
+        let score = 0;
+
+        let playerX, lasers, invaders, invaderDir;
+        let snake, snakeDir, food, moveTimer, dIndex;
+        
+        let px, py, pa; 
+        let doomTurn = 0, isShooting = false, shootFrame = 0, ammo = 50;
+        const doomMap = [
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,0,2,0,1],
+            [1,0,1,1,0,1,1,1,0,1],
+            [1,0,1,2,0,0,0,1,0,1],
+            [1,0,1,0,1,1,0,1,0,1],
+            [1,0,0,0,2,1,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        function setLeftAction(startFn, endFn) {
+            const btn = document.getElementById('left-btn');
+            btn.onmousedown = btn.ontouchstart = (e) => { e.preventDefault(); startFn(); };
+            if(endFn) btn.onmouseup = btn.onmouseleave = btn.ontouchend = (e) => { e.preventDefault(); endFn(); };
+        }
+        function setRightAction(startFn, endFn) {
+            const btn = document.getElementById('right-btn');
+            btn.onmousedown = btn.ontouchstart = (e) => { e.preventDefault(); startFn(); };
+            if(endFn) btn.onmouseup = btn.onmouseleave = btn.ontouchend = (e) => { e.preventDefault(); endFn(); };
+        }
+        function setCenterAction(startFn) {
+            const btn = document.getElementById('action-btn');
+            btn.onmousedown = btn.ontouchstart = (e) => { e.preventDefault(); startFn(); };
+        }
+
+        function play(gameName) {
+            document.getElementById('menu-page').style.display = 'none';
+            document.getElementById('game-page').style.display = 'block';
+            
+            canvas.width = Math.min(window.innerWidth, 500); 
+            canvas.height = window.innerHeight - 160; 
+            
+            activeGame = gameName;
+            score = 0;
+
+            if (gameName === 'doom') {
+                initDoom();
+            } else if (gameName === 'space') {
+                initSpace();
+            } else if (gameName === 'snake') {
+                initSnake();
+            }
+        }
+
+        function stopGame() {
+            clearTimeout(loop);
+            cancelAnimationFrame(loop);
+            activeGame = null;
+            document.getElementById('game-page').style.display = 'none';
+            document.getElementById('menu-page').style.display = 'flex';
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (!activeGame) return;
+            if (e.key === "ArrowLeft") {
+                if (activeGame === 'doom') doomTurn = -1;
+                if (activeGame === 'space') { playerX -= 25; if (playerX < 20) playerX = 20; }
+                if (activeGame === 'snake') { dIndex = (dIndex + 3) % 4; snakeDir = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }][dIndex]; }
+            }
+            if (e.key === "ArrowRight") {
+                if (activeGame === 'doom') doomTurn = 1;
+                if (activeGame === 'space') { playerX += 25; if (playerX > canvas.width - 20) playerX = canvas.width - 20; }
+                if (activeGame === 'snake') { dIndex = (dIndex + 1) % 4; snakeDir = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }][dIndex]; }
+            }
+            if (e.key === " " || e.key === "Spacebar") {
+                e.preventDefault();
+                if (activeGame === 'doom') fireDoom();
+                if (activeGame === 'space') lasers.push({ x: playerX, y: canvas.height - 30 });
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (activeGame === 'doom' && (e.key === "ArrowLeft" || e.key === "ArrowRight")) doomTurn = 0;
+        });
+
+        // ==========================================
+        // 1. DOOM 3D
+        // ==========================================
+        function initDoom() {
+            px = 1.5; py = 1.5; pa = 0; ammo = 40; doomTurn = 0; isShooting = false; shootFrame = 0;
+            document.getElementById('left-btn').innerText = "◀ ROT";
+            document.getElementById('right-btn').innerText = "ROT ▶";
+            document.getElementById('action-btn').innerText = "FIRE";
+            updateDoomHUD();
+
+            setLeftAction(() => doomTurn = -1, () => doomTurn = 0);
+            setRightAction(() => doomTurn = 1, () => doomTurn = 0);
+            setCenterAction(() => fireDoom());
+
+            runDoom();
+        }
+
+        function fireDoom() {
+            if(ammo > 0 && !isShooting) {
+                ammo--; isShooting = true; shootFrame = 1;
+                checkDoomHit(); updateDoomHUD();
+            }
+            let nx = px + Math.cos(pa) * 0.4;
+            let ny = py + Math.sin(pa) * 0.4;
+            if(doomMap[Math.floor(py)][Math.floor(nx)] !== 1) px = nx;
+            if(doomMap[Math.floor(ny)][Math.floor(px)] !== 1) py = ny;
+        }
+
+        function updateDoomHUD() {
+            document.getElementById('hud-1').innerText = "AMMO: " + ammo;
+            document.getElementById('hud-2').innerText = "SCORE: " + score;
+        }
+
+        function checkDoomHit() {
+            let hx = px, hy = py;
+            for(let i=0; i<20; i++) {
+                hx += Math.cos(pa) * 0.2; hy += Math.sin(pa) * 0.2;
+                let mx = Math.floor(hx), my = Math.floor(hy);
+                if(doomMap[my] && doomMap[my][mx] === 2) { doomMap[my][mx] = 0; score += 100; break; }
+                if(doomMap[my] && doomMap[my][mx] === 1) break;
+            }
+        }
+
+        function runDoom() {
+            if (activeGame !== 'doom') return;
+            pa += doomTurn * 0.05;
+            ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height/2);
+            ctx.fillStyle = '#222'; ctx.fillRect(0, canvas.height/2, canvas.width, canvas.height/2);
+
+            let fov = Math.PI / 3;
+            for(let i = 0; i < canvas.width; i += 4) {
+                let rayAngle = (pa - fov/2) + (i / canvas.width) * fov;
+                let dist = 0; let hit = false; let isTarget = false;
+                while(!hit && dist < 10) {
+                    dist += 0.08;
+                    let cx = Math.floor(px + Math.cos(rayAngle) * dist);
+                    let cy = Math.floor(py + Math.sin(rayAngle) * dist);
+                    if(doomMap[cy] && doomMap[cy][cx] > 0) { hit = true; if(doomMap[cy][cx] === 2) isTarget = true; }
+                }
+                let correctedD = dist * Math.cos(rayAngle - pa);
+                let wallH = Math.min(canvas.height, canvas.height / correctedD);
+                let colorVal = Math.max(10, 160 - correctedD * 15);
+                ctx.fillStyle = isTarget ? `rgb(${colorVal},0,0)` : `rgb(0,${colorVal},0)`;
+                ctx.fillRect(i, (canvas.height - wallH)/2, 4, wallH);
+            }
+            let cx = canvas.width / 2; let cy = canvas.height;
+            ctx.fillStyle = isShooting ? "#ffcc00" : "#555"; ctx.fillRect(cx - 15, cy - 70, 30, 70);
+            if(isShooting && ++shootFrame > 4) isShooting = false;
+            loop = requestAnimationFrame(runDoom);
+        }
+
+        // ==========================================
+        // 2. SPACE ATTACK
+        // ==========================================
+        function initSpace() {
+            document.getElementById('hud-1').innerText = "SCORE: 0"; document.getElementById('hud-2').innerText = "";
+            playerX = canvas.width / 2; lasers = []; invaders = []; invaderDir = 1;
+            document.getElementById('left-btn').innerText = "◀";
+            document.getElementById('right-btn').innerText = "▶";
+            document.getElementById('action-btn').innerText = "FIRE";
+
+            setLeftAction(() => { playerX -= 25; if (playerX < 20) playerX = 20; });
+            setRightAction(() => { playerX += 25; if (playerX > canvas.width - 20) playerX = canvas.width - 20; });
+            setCenterAction(() => lasers.push({ x: playerX, y: canvas.height - 30 }));
+
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 5; c++) { invaders.push({ x: 30 + c * 50, y: 50 + r * 35, alive: true }); }
+            }
+            runSpace();
+        }
+
+        function runSpace() {
+            if (activeGame !== 'space') return;
+            ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#33ff33'; ctx.fillRect(playerX - 15, canvas.height - 25, 30, 15);
+            ctx.fillStyle = '#ffffff';
+            lasers.forEach((l, index) => {
+                l.y -= 8; ctx.fillRect(l.x - 2, l.y, 4, 10);
+                if (l.y < 0) lasers.splice(index, 1);
+            });
+            let hitEdge = false; ctx.fillStyle = '#ff3333';
+            invaders.forEach(inv => {
+                if (!inv.alive) return;
+                inv.x += invaderDir * 1.5; ctx.fillRect(inv.x, inv.y, 25, 15);
+                if (inv.x > canvas.width - 35 || inv.x < 10) hitEdge = true;
+                lasers.forEach((l, lIndex) => {
+                    if (l.x > inv.x && l.x < inv.x + 25 && l.y > inv.y && l.y < inv.y + 15) {
+                        inv.alive = false; lasers.splice(lIndex, 1); score += 10;
+                        document.getElementById('hud-1').innerText = "SCORE: " + score;
+                    }
+                });
+            });
+            if (hitEdge) { invaderDir *= -1; invaders.forEach(inv => inv.y += 10); }
+            if (invaders.every(inv => !inv.alive)) { alert("ПОБЕДА!"); stopGame(); return; }
+            loop = requestAnimationFrame(runSpace);
+        }
+
+        // ==========================================
+        // 3. RETRO SNAKE
+        // ==========================================
+        const grid = 16;
+        function initSnake() {
+            document.getElementById('hud-1').innerText = "SCORE: 0"; document.getElementById('hud-2').innerText = "";
+            snake = [{ x: 8, y: 8 }, { x: 7, y: 8 }]; snakeDir = { x: 1, y: 0 }; food = { x: 4, y: 5 }; moveTimer = 0; dIndex = 0;
+            document.getElementById('left-btn').innerText = "↩";
+            document.getElementById('right-btn').innerText = "↪";
+            document.getElementById('action-btn').innerText = "SNAKE";
+
+            let directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }];
+            setLeftAction(() => { dIndex = (dIndex + 3) % 4; snakeDir = directions[dIndex]; });
+            setRightAction(() => { dIndex = (dIndex + 1) % 4; snakeDir = directions[dIndex]; });
+
+            runSnake();
+        }
+
+        function runSnake() {
+            if (activeGame !== 'snake') return;
+            loop = requestAnimationFrame(runSnake);
+            if (++moveTimer < 10) return; moveTimer = 0;
+            ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            let head = { x: snake[0].x + snakeDir.x, y: snake[0].y + snakeDir.y };
+            let cols = Math.floor(canvas.width / grid), rows = Math.floor(canvas.height / grid);
+            if (head.x < 0 || head.y < 0 || head.x >= cols || head.y >= rows || snake.some(s => s.x === head.x && s.y === head.y)) {
+                alert("GAME OVER!"); stopGame(); return;
+            }
+            snake.unshift(head);
+            if (head.x === food.x && head.y === food.y) {
+                score += 5; document.getElementById('hud-1').innerText = "SCORE: " + score;
+                food = { x: Math.floor(Math.random() * (cols - 2)) + 1, y: Math.floor(Math.random() * (rows - 2)) + 1 };
+            } else { snake.pop(); }
+            ctx.fillStyle = '#ff3333'; ctx.fillRect(food.x * grid, food.y * grid, grid - 2, grid - 2);
+            ctx.fillStyle = '#33ff33'; snake.forEach(part => ctx.fillRect(part.x * grid, part.y * grid, grid - 2, grid - 2));
+        }
+    </script>
+</body>
+</html>
